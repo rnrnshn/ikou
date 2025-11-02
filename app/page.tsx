@@ -10,10 +10,10 @@ export default function Home() {
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <h1 className="text-2xl font-bold text-primary">Ikou</h1>
           <div className="flex gap-4">
-            <Link href="/login">
+            <Link href="/auth/login">
               <Button variant="ghost">Login</Button>
             </Link>
-            <Link href="/register">
+            <Link href="/auth/register">
               <Button>Sign Up</Button>
             </Link>
           </div>
@@ -27,7 +27,7 @@ export default function Home() {
           <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto text-balance">
             Conecte-se com sua comunidade, descubra novos eventos e faça amigos em Moçambique
           </p>
-          <Link href="/register">
+          <Link href="/auth/register">
             <Button size="lg" className="mb-4">
               Começar Agora
             </Button>
