@@ -1,32 +1,41 @@
 "use client"
 
-import type React from "react"
-
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase-client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Upload, X } from "lucide-react"
 import Image from "next/image"
+import { useForm, Controller } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { createCommunitySchema, type CreateCommunityFormData } from "@/lib/validations"
 
 export default function NewCommunityPage() {
   const router = useRouter()
   const supabase = createClient()
-  const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
 
-  const [formData, setFormData] = useState({
-    name: "",
-    description: "",
-    category: "",
-    city: "",
-    image_url: "",
+  const {
+    register,
+    handleSubmit,
+    control,
+    formState: { errors, isSubmitting },
+  } = useForm<CreateCommunityFormData>({
+    resolver: zodResolver(createCommunitySchema),
+    defaultValues: {
+      name: "",
+      description: "",
+      category: undefined,
+      city: "",
+      image_url: "",
+    },
   })
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -46,9 +55,7 @@ export default function NewCommunityPage() {
     setImagePreview(null)
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setLoading(true)
+  const onSubmit = async (data: CreateCommunityFormData) => {
     setError("")
 
     try {
@@ -71,11 +78,10 @@ export default function NewCommunityPage() {
 
       if (existingCommunities && existingCommunities.length > 0) {
         setError("Você já tem uma comunidade. Cada organizador pode criar apenas uma comunidade.")
-        setLoading(false)
         return
       }
 
-      let uploadedImageUrl = null
+      let uploadedImageUrl = data.image_url || null
 
       // Upload image if provided
       if (imageFile) {
@@ -97,10 +103,10 @@ export default function NewCommunityPage() {
       }
 
       const { error: insertError } = await supabase.from("communities").insert({
-        name: formData.name,
-        description: formData.description,
-        category: formData.category,
-        city: formData.city,
+        name: data.name,
+        description: data.description,
+        category: data.category,
+        city: data.city,
         image_url: uploadedImageUrl,
         organizer_id: user.id,
       })
@@ -110,8 +116,6 @@ export default function NewCommunityPage() {
       router.push("/dashboard/communities")
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao criar comunidade")
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -123,57 +127,72 @@ export default function NewCommunityPage() {
           <CardDescription>Crie uma nova comunidade para conectar pessoas com interesses em comum</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             <div>
-              <label className="block text-sm font-medium mb-2">Nome da Comunidade</label>
+              <Label htmlFor="name">Nome da Comunidade</Label>
               <Input
-                required
+                id="name"
                 placeholder="Ex: Desenvolvedores de Moçambique"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                {...register("name")}
+                disabled={isSubmitting}
               />
+              {errors.name && (
+                <p className="text-xs text-destructive mt-1">{errors.name.message}</p>
+              )}
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Descrição</label>
+              <Label htmlFor="description">Descrição</Label>
               <Textarea
-                required
+                id="description"
                 placeholder="Descreva sua comunidade..."
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                {...register("description")}
+                disabled={isSubmitting}
                 rows={4}
               />
+              {errors.description && (
+                <p className="text-xs text-destructive mt-1">{errors.description.message}</p>
+              )}
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Categoria</label>
-              <Select
-                value={formData.category}
-                onValueChange={(value) => setFormData({ ...formData, category: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione uma categoria" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Tech">Tecnologia</SelectItem>
-                  <SelectItem value="Business">Negócios</SelectItem>
-                  <SelectItem value="Arts">Artes</SelectItem>
-                  <SelectItem value="Sports">Desportos</SelectItem>
-                  <SelectItem value="Education">Educação</SelectItem>
-                  <SelectItem value="Social">Social</SelectItem>
-                  <SelectItem value="Other">Outro</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Cidade</label>
-              <Input
-                required
-                placeholder="Ex: Maputo"
-                value={formData.city}
-                onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+              <Label htmlFor="category">Categoria</Label>
+              <Controller
+                name="category"
+                control={control}
+                render={({ field }) => (
+                  <Select value={field.value} onValueChange={field.onChange} disabled={isSubmitting}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione uma categoria" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Tech">Tecnologia</SelectItem>
+                      <SelectItem value="Business">Negócios</SelectItem>
+                      <SelectItem value="Arts">Artes</SelectItem>
+                      <SelectItem value="Sports">Desportos</SelectItem>
+                      <SelectItem value="Education">Educação</SelectItem>
+                      <SelectItem value="Social">Social</SelectItem>
+                      <SelectItem value="Other">Outro</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
               />
+              {errors.category && (
+                <p className="text-xs text-destructive mt-1">{errors.category.message}</p>
+              )}
+            </div>
+
+            <div>
+              <Label htmlFor="city">Cidade</Label>
+              <Input
+                id="city"
+                placeholder="Ex: Maputo"
+                {...register("city")}
+                disabled={isSubmitting}
+              />
+              {errors.city && (
+                <p className="text-xs text-destructive mt-1">{errors.city.message}</p>
+              )}
             </div>
 
             <div>
@@ -206,11 +225,11 @@ export default function NewCommunityPage() {
             {error && <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-lg">{error}</div>}
 
             <div className="flex gap-4">
-              <Button type="button" variant="outline" onClick={() => router.back()}>
+              <Button type="button" variant="outline" onClick={() => router.back()} disabled={isSubmitting}>
                 Cancelar
               </Button>
-              <Button type="submit" disabled={loading}>
-                {loading ? "Criando..." : "Criar Comunidade"}
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Criando..." : "Criar Comunidade"}
               </Button>
             </div>
           </form>
