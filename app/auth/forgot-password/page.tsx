@@ -1,7 +1,5 @@
 "use client"
 
-import type React from "react"
-
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -12,21 +10,28 @@ import Image from "next/image"
 import { useState } from "react"
 import { AlertCircle, CheckCircle, ArrowLeft } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { forgotPasswordSchema, type ForgotPasswordFormData } from "@/lib/validations"
 
 export default function ForgotPasswordPage() {
-  const [email, setEmail] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
 
-  const handleResetPassword = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<ForgotPasswordFormData>({
+    resolver: zodResolver(forgotPasswordSchema),
+  })
+
+  const onSubmit = async (data: ForgotPasswordFormData) => {
     const supabase = createClient()
-    setIsLoading(true)
     setError(null)
 
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      const { error } = await supabase.auth.resetPasswordForEmail(data.email, {
         redirectTo: `${window.location.origin}/auth/reset-password`,
       })
 
@@ -36,8 +41,6 @@ export default function ForgotPasswordPage() {
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Ocorreu um erro"
       setError(message)
-    } finally {
-      setIsLoading(false)
     }
   }
 
@@ -79,18 +82,19 @@ export default function ForgotPasswordPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleResetPassword} className="space-y-6">
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
                   id="email"
                   type="email"
                   placeholder="seu@email.com"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  disabled={isLoading}
+                  {...register("email")}
+                  disabled={isSubmitting}
                 />
+                {errors.email && (
+                  <p className="text-xs text-destructive">{errors.email.message}</p>
+                )}
               </div>
 
               {error && (
@@ -100,8 +104,8 @@ export default function ForgotPasswordPage() {
                 </Alert>
               )}
 
-              <Button type="submit" className="w-full" disabled={isLoading} size="lg">
-                {isLoading ? "Enviando..." : "Enviar instruções"}
+              <Button type="submit" className="w-full" disabled={isSubmitting} size="lg">
+                {isSubmitting ? "Enviando..." : "Enviar instruções"}
               </Button>
 
               <div className="text-center">
