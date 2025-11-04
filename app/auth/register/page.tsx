@@ -1,7 +1,5 @@
 "use client"
 
-import type React from "react"
-
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -14,63 +12,49 @@ import { useState } from "react"
 import { AlertCircle, CheckCircle, Users, Briefcase } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { cn } from "@/lib/utils"
-
-type UserRole = "member" | "organizer"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { registerSchema, type RegisterFormData } from "@/lib/validations"
 
 export default function RegisterPage() {
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    password: "",
-    confirmPassword: "",
-    role: "member" as UserRole,
-  })
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }))
-  }
+  const {
+    register,
+    handleSubmit,
+    watch,
+    setValue,
+    formState: { errors, isSubmitting },
+  } = useForm<RegisterFormData>({
+    resolver: zodResolver(registerSchema),
+    defaultValues: {
+      name: "",
+      email: "",
+      password: "",
+      confirmPassword: "",
+      role: "member",
+    },
+  })
 
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const selectedRole = watch("role")
+
+  const onSubmit = async (data: RegisterFormData) => {
     setError(null)
-
-    if (!formData.name.trim()) {
-      setError("Nome é obrigatório")
-      return
-    }
-
-    if (formData.password !== formData.confirmPassword) {
-      setError("As senhas não correspondem")
-      return
-    }
-
-    if (formData.password.length < 6) {
-      setError("A senha deve ter pelo menos 6 caracteres")
-      return
-    }
-
     const supabase = createClient()
-    setIsLoading(true)
 
     try {
       // Sign up with user metadata - the database trigger will create the profile
-      const { data, error: signUpError } = await supabase.auth.signUp({
-        email: formData.email,
-        password: formData.password,
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email: data.email,
+        password: data.password,
         options: {
           emailRedirectTo:
             process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || `${window.location.origin}/auth/verify-email`,
           data: {
-            name: formData.name,
-            role: formData.role,
+            name: data.name,
+            role: data.role,
           },
         },
       })
@@ -78,7 +62,7 @@ export default function RegisterPage() {
       if (signUpError) throw signUpError
 
       // Check if email confirmation is required
-      if (data.user && !data.session) {
+      if (signUpData.user && !signUpData.session) {
         // Email confirmation is enabled - show message
         setError("Por favor, verifique seu email para confirmar sua conta antes de fazer login.")
         return
@@ -88,14 +72,12 @@ export default function RegisterPage() {
       setSuccess(true)
       setTimeout(() => {
         // Redirect based on role
-        const redirectTo = formData.role === "organizer" ? "/dashboard" : "/"
+        const redirectTo = data.role === "organizer" ? "/dashboard" : "/"
         router.push(redirectTo)
       }, 1500)
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "An error occurred"
       setError(message)
-    } finally {
-      setIsLoading(false)
     }
   }
 
@@ -127,33 +109,33 @@ export default function RegisterPage() {
             <CardDescription>Junte-se à nossa comunidade de eventos</CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSignUp} className="space-y-5">
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
               <div className="space-y-2">
                 <Label htmlFor="name">Nome Completo</Label>
                 <Input
                   id="name"
-                  name="name"
                   type="text"
                   placeholder="João Silva"
-                  required
-                  value={formData.name}
-                  onChange={handleChange}
-                  disabled={isLoading}
+                  {...register("name")}
+                  disabled={isSubmitting}
                 />
+                {errors.name && (
+                  <p className="text-xs text-destructive">{errors.name.message}</p>
+                )}
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
                   id="email"
-                  name="email"
                   type="email"
                   placeholder="seu@email.com"
-                  required
-                  value={formData.email}
-                  onChange={handleChange}
-                  disabled={isLoading}
+                  {...register("email")}
+                  disabled={isSubmitting}
                 />
+                {errors.email && (
+                  <p className="text-xs text-destructive">{errors.email.message}</p>
+                )}
               </div>
 
               <div className="space-y-3">
@@ -162,14 +144,14 @@ export default function RegisterPage() {
                   {/* Member Card */}
                   <button
                     type="button"
-                    onClick={() => setFormData((prev) => ({ ...prev, role: "member" }))}
-                    disabled={isLoading}
+                    onClick={() => setValue("role", "member")}
+                    disabled={isSubmitting}
                     className={cn(
                       "relative flex flex-col items-start gap-2 rounded-lg border-2 p-4 text-left transition-all hover:bg-accent",
-                      formData.role === "member"
+                      selectedRole === "member"
                         ? "border-primary bg-primary/5"
                         : "border-muted hover:border-muted-foreground/20",
-                      isLoading && "opacity-50 cursor-not-allowed"
+                      isSubmitting && "opacity-50 cursor-not-allowed"
                     )}
                   >
                     <div className="flex items-center gap-2 w-full">
@@ -179,7 +161,7 @@ export default function RegisterPage() {
                     <p className="text-xs text-muted-foreground leading-relaxed">
                       Participe de eventos e siga comunidades
                     </p>
-                    {formData.role === "member" && (
+                    {selectedRole === "member" && (
                       <div className="absolute top-2 right-2">
                         <div className="h-2 w-2 rounded-full bg-primary" />
                       </div>
@@ -189,14 +171,14 @@ export default function RegisterPage() {
                   {/* Organizer Card */}
                   <button
                     type="button"
-                    onClick={() => setFormData((prev) => ({ ...prev, role: "organizer" }))}
-                    disabled={isLoading}
+                    onClick={() => setValue("role", "organizer")}
+                    disabled={isSubmitting}
                     className={cn(
                       "relative flex flex-col items-start gap-2 rounded-lg border-2 p-4 text-left transition-all hover:bg-accent",
-                      formData.role === "organizer"
+                      selectedRole === "organizer"
                         ? "border-primary bg-primary/5"
                         : "border-muted hover:border-muted-foreground/20",
-                      isLoading && "opacity-50 cursor-not-allowed"
+                      isSubmitting && "opacity-50 cursor-not-allowed"
                     )}
                   >
                     <div className="flex items-center gap-2 w-full">
@@ -206,15 +188,18 @@ export default function RegisterPage() {
                     <p className="text-xs text-muted-foreground leading-relaxed">
                       Crie e gerencie eventos e comunidades
                     </p>
-                    {formData.role === "organizer" && (
+                    {selectedRole === "organizer" && (
                       <div className="absolute top-2 right-2">
                         <div className="h-2 w-2 rounded-full bg-primary" />
                       </div>
                     )}
                   </button>
                 </div>
+                {errors.role && (
+                  <p className="text-xs text-destructive">{errors.role.message}</p>
+                )}
                 <p className="text-xs text-muted-foreground">
-                  {formData.role === "member"
+                  {selectedRole === "member"
                     ? "Como membro, você pode descobrir eventos e participar de comunidades"
                     : "Como organizador, você terá acesso ao painel de gerenciamento"}
                 </p>
@@ -224,29 +209,31 @@ export default function RegisterPage() {
                 <Label htmlFor="password">Senha</Label>
                 <Input
                   id="password"
-                  name="password"
                   type="password"
                   placeholder="••••••••"
-                  required
-                  value={formData.password}
-                  onChange={handleChange}
-                  disabled={isLoading}
+                  {...register("password")}
+                  disabled={isSubmitting}
                 />
-                <p className="text-xs text-muted-foreground">Mínimo de 6 caracteres</p>
+                {errors.password && (
+                  <p className="text-xs text-destructive">{errors.password.message}</p>
+                )}
+                {!errors.password && (
+                  <p className="text-xs text-muted-foreground">Mínimo de 6 caracteres</p>
+                )}
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="confirmPassword">Confirmar Senha</Label>
                 <Input
                   id="confirmPassword"
-                  name="confirmPassword"
                   type="password"
                   placeholder="••••••••"
-                  required
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
-                  disabled={isLoading}
+                  {...register("confirmPassword")}
+                  disabled={isSubmitting}
                 />
+                {errors.confirmPassword && (
+                  <p className="text-xs text-destructive">{errors.confirmPassword.message}</p>
+                )}
               </div>
 
               {error && (
@@ -256,8 +243,8 @@ export default function RegisterPage() {
                 </Alert>
               )}
 
-              <Button type="submit" className="w-full" disabled={isLoading} size="lg">
-                {isLoading ? "Criando conta..." : "Criar Conta"}
+              <Button type="submit" className="w-full" disabled={isSubmitting} size="lg">
+                {isSubmitting ? "Criando conta..." : "Criar Conta"}
               </Button>
 
               <div className="relative">

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase-client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Plus, Users, MapPin } from "lucide-react"
 
 interface Community {
@@ -62,7 +63,25 @@ export default function CommunitiesPage() {
   }
 
   if (loading) {
-    return <div className="text-center py-12 text-muted-foreground">Carregando...</div>
+    return (
+      <div className="space-y-6">
+        <div>
+          <Skeleton className="h-9 w-48 mb-2" />
+          <Skeleton className="h-5 w-96" />
+        </div>
+        <Card>
+          <CardContent className="py-12">
+            <div className="max-w-md mx-auto space-y-4 text-center">
+              <Skeleton className="h-16 w-16 mx-auto rounded" />
+              <Skeleton className="h-7 w-64 mx-auto" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-3/4 mx-auto" />
+              <Skeleton className="h-11 w-48 mx-auto mt-4" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   // If no community exists, show create prompt
