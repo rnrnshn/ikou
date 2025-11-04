@@ -13,10 +13,10 @@ interface Attendee {
   user_id: string
   status: string
   registered_at: string
-  users?: {
-    full_name: string
+  profiles?: {
+    name: string
     email: string
-    avatar_url: string
+    avatar_url: string | null
   }
 }
 
@@ -76,7 +76,7 @@ export default function EventAttendeesPage() {
       // Fetch attendees
       const { data: attendeesData, error: attendeesError } = await supabase
         .from("event_attendees")
-        .select("*, users(full_name, email, avatar_url)")
+        .select("*, profiles(name, email, avatar_url)")
         .eq("event_id", params.id)
         .order("registered_at", { ascending: false })
 
@@ -108,8 +108,8 @@ export default function EventAttendeesPage() {
 
     const headers = ["Nome", "Email", "Status", "Data de Registro"]
     const rows = attendees.map((attendee) => [
-      attendee.users?.full_name || "N/A",
-      attendee.users?.email || "N/A",
+      attendee.profiles?.name || "N/A",
+      attendee.profiles?.email || "N/A",
       attendee.status,
       new Date(attendee.registered_at).toLocaleDateString("pt-MZ"),
     ])
@@ -210,14 +210,14 @@ export default function EventAttendeesPage() {
                 <TableBody>
                   {attendees.map((attendee) => (
                     <TableRow key={attendee.id}>
-                      <TableCell className="font-medium">{attendee.users?.full_name || "Usuário"}</TableCell>
+                      <TableCell className="font-medium">{attendee.profiles?.name || "Usuário"}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          {attendee.users?.email || "N/A"}
+                          {attendee.profiles?.email || "N/A"}
                           <button
                             onClick={() => {
-                              if (attendee.users?.email) {
-                                window.location.href = `mailto:${attendee.users.email}`
+                              if (attendee.profiles?.email) {
+                                window.location.href = `mailto:${attendee.profiles.email}`
                               }
                             }}
                             className="text-primary hover:underline"

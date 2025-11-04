@@ -6,38 +6,40 @@ This directory contains SQL migration scripts and verification tools for the Iko
 
 ## 📋 Current Database Status
 
-**Schema Status**: ⚠️ **Needs Cleanup**
+**Schema Status**: ⚠️ **Needs Schema Fix**
 
-Your database currently has **duplicate tables** from two different schema versions:
+The application code requires specific tables that may not be in your current schema.
 
-### ✅ Correct Tables (Keep These)
-- `profiles` - User accounts with roles
+### ✅ Required Tables (Application Code Depends On These)
+- `profiles` - User accounts with roles (linked to auth.users)
 - `communities` - Community metadata with `organizer_id`
 - `events` - Event details with `organizer_id`
-- `rsvps` - Event RSVPs
-- `community_followers` - Community followers
+- `community_members` - Community membership with role tracking (member/moderator/admin)
+- `event_attendees` - Event RSVPs with status tracking (attending/interested/declined)
 
-### ❌ Incorrect Tables (Need to Remove)
-- `users` - Duplicate of `profiles` (from wrong schema)
-- `event_attendees` - Duplicate of `rsvps` (from wrong schema)
-- `community_members` - Duplicate of `community_followers` (from wrong schema)
-
-**Good news**: All tables are empty (0 rows), so cleanup is safe!
+### 🔧 What the Fix Does
+The unified schema fix (`08-unified-schema-fix.sql`) ensures your database has all the tables the application expects:
+- Creates `community_members` table (with role-based access)
+- Creates `event_attendees` table (with status tracking)
+- Adds auto-counting triggers for member_count and attendee_count
+- Ensures all tables reference `profiles` (not `users`)
 
 ---
 
 ## 🚀 Quick Start - Fix Your Database
 
-### Step 1: Run Cleanup Script
+### Step 1: Run the Unified Schema Fix
 
-Navigate to your Supabase dashboard and execute the cleanup script:
+Navigate to your Supabase dashboard and execute the fix script:
 
 1. Go to **Supabase Dashboard** → Your Project → **SQL Editor**
 2. Click **New Query**
-3. Copy and paste the contents of `03-cleanup-duplicate-tables.sql`
+3. Copy and paste the contents of `08-unified-schema-fix.sql`
 4. Click **Run** or press `Ctrl/Cmd + Enter`
 
-**What it does**: Drops the incorrect tables (`users`, `event_attendees`, `community_members`) while keeping the correct schema intact.
+**What it does**: Creates all required tables (`community_members`, `event_attendees`) with proper RLS policies and triggers.
+
+**This script is safe to run multiple times** - it won't duplicate tables or data.
 
 ### Step 2: Verify Schema
 
@@ -265,6 +267,24 @@ supabase db reset      # Reset database (destructive!)
 
 ---
 
+## ⚠️ Deprecated Scripts - DO NOT RUN
+
+### ❌ 03-cleanup-duplicate-tables.sql
+**Status**: DEPRECATED - DO NOT USE
+
+This script was created based on incorrect assumptions about the schema. It attempts to drop `event_attendees` and `community_members` tables, which are actually REQUIRED by the application code.
+
+**DO NOT RUN THIS SCRIPT** - it will break the application.
+
+**Use instead**: `08-unified-schema-fix.sql`
+
+### ❌ 07-create-event-attendees.sql
+**Status**: SUPERSEDED by 08-unified-schema-fix.sql
+
+This script is now included in the unified fix. You can use the unified fix instead.
+
+---
+
 ## 📞 Support
 
 If you encounter issues:
@@ -275,5 +295,5 @@ If you encounter issues:
 
 ---
 
-**Last Updated**: November 2, 2025
+**Last Updated**: November 4, 2025
 **Database URL**: `https://jpixrjaostgngicmymht.supabase.co`
