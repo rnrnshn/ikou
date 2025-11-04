@@ -17,7 +17,7 @@ interface Event {
   start_date: string
   end_date: string
   attendee_count: number
-  created_by: string
+  organizer_id: string
   community_id: string
   communities?: {
     name: string
@@ -126,7 +126,7 @@ export default function EventDetailPage() {
     return <div className="text-center py-12">Evento não encontrado</div>
   }
 
-  const isOwner = currentUserId === event.created_by
+  const isOwner = currentUserId === event.organizer_id
 
   return (
     <div className="space-y-6">
@@ -149,9 +149,11 @@ export default function EventDetailPage() {
             </div>
             {isOwner && (
               <div className="flex gap-2">
-                <Button variant="outline" size="sm">
-                  <Edit className="h-4 w-4" />
-                </Button>
+                <Link href={`/dashboard/events/${event.id}/edit`}>
+                  <Button variant="outline" size="sm">
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                </Link>
                 <Button variant="destructive" size="sm" onClick={handleDelete}>
                   <Trash2 className="h-4 w-4" />
                 </Button>

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase-client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -12,93 +13,90 @@ interface Community {
   name: string
   description: string
   image_url: string
-  location: string
-  member_count: number
+  category: string
+  city: string
+  organizer_id: string
 }
 
 export default function CommunitiesPage() {
-  const [communities, setCommunities] = useState<Community[]>([])
+  const router = useRouter()
+  const [community, setCommunity] = useState<Community | null>(null)
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
 
   useEffect(() => {
-    fetchCommunities()
+    fetchUserCommunity()
   }, [])
 
-  async function fetchCommunities() {
+  async function fetchUserCommunity() {
     try {
-      const { data, error } = await supabase.from("communities").select("*").order("created_at", { ascending: false })
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
 
-      if (error) throw error
-      setCommunities(data || [])
+      if (!user) return
+
+      // Fetch only the organizer's community
+      const { data, error } = await supabase
+        .from("communities")
+        .select("*")
+        .eq("organizer_id", user.id)
+        .single()
+
+      if (error && error.code !== "PGRST116") {
+        // PGRST116 = no rows returned
+        throw error
+      }
+
+      setCommunity(data)
+
+      // If community exists, redirect to it
+      if (data) {
+        router.push(`/dashboard/communities/${data.id}`)
+      }
     } catch (error) {
-      console.error("Error fetching communities:", error)
+      console.error("Error fetching community:", error)
     } finally {
       setLoading(false)
     }
   }
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold mb-2">Comunidades</h1>
-          <p className="text-muted-foreground">Gerencie e explore comunidades</p>
-        </div>
-        <Link href="/dashboard/communities/new">
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            Nova Comunidade
-          </Button>
-        </Link>
-      </div>
+  if (loading) {
+    return <div className="text-center py-12 text-muted-foreground">Carregando...</div>
+  }
 
-      {loading ? (
-        <div className="text-center py-12 text-muted-foreground">Carregando comunidades...</div>
-      ) : communities.length === 0 ? (
+  // If no community exists, show create prompt
+  if (!community) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold mb-2">Sua Comunidade</h1>
+          <p className="text-muted-foreground">Crie sua comunidade para começar a organizar eventos</p>
+        </div>
+
         <Card>
           <CardContent className="py-12 text-center">
-            <p className="text-muted-foreground mb-4">Nenhuma comunidade encontrada</p>
-            <Link href="/dashboard/communities/new">
-              <Button>Criar Primeira Comunidade</Button>
-            </Link>
+            <div className="max-w-md mx-auto space-y-4">
+              <Plus className="h-16 w-16 text-muted-foreground mx-auto" />
+              <h3 className="text-xl font-semibold">Crie Sua Comunidade</h3>
+              <p className="text-muted-foreground">
+                Como organizador, você pode criar uma comunidade e gerenciar eventos para conectar pessoas com interesses
+                em comum.
+              </p>
+              <Link href="/dashboard/communities/new">
+                <Button size="lg">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Criar Comunidade
+                </Button>
+              </Link>
+            </div>
           </CardContent>
         </Card>
-      ) : (
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {communities.map((community) => (
-            <Link key={community.id} href={`/dashboard/communities/${community.id}`}>
-              <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer">
-                {community.image_url && (
-                  <div className="h-48 bg-secondary overflow-hidden rounded-t-lg">
-                    <img
-                      src={community.image_url || "/placeholder.svg"}
-                      alt={community.name}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                )}
-                <CardHeader>
-                  <CardTitle>{community.name}</CardTitle>
-                  <CardDescription className="line-clamp-2">{community.description}</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  {community.location && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <MapPin className="h-4 w-4" />
-                      {community.location}
-                    </div>
-                  )}
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Users className="h-4 w-4" />
-                    {community.member_count} membros
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
-      )}
-    </div>
-  )
+      </div>
+    )
+  }
+
+  // This return will never be reached because of the redirect,
+  // but we keep it for the loading state
+  return null
 }

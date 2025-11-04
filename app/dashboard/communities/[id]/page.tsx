@@ -14,7 +14,7 @@ interface Community {
   image_url: string
   location: string
   member_count: number
-  created_by: string
+  organizer_id: string
 }
 
 export default function CommunityDetailPage() {
@@ -107,7 +107,7 @@ export default function CommunityDetailPage() {
     return <div className="text-center py-12">Comunidade não encontrada</div>
   }
 
-  const isOwner = currentUserId === community.created_by
+  const isOwner = currentUserId === community.organizer_id
 
   return (
     <div className="space-y-6">
@@ -134,7 +134,7 @@ export default function CommunityDetailPage() {
             </div>
             {isOwner && (
               <div className="flex gap-2">
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" onClick={() => router.push(`/dashboard/communities/${params.id}/edit`)}>
                   <Edit className="h-4 w-4" />
                 </Button>
                 <Button variant="destructive" size="sm" onClick={handleDelete}>

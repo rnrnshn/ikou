@@ -23,7 +23,7 @@ interface Attendee {
 interface Event {
   id: string
   title: string
-  created_by: string
+  organizer_id: string
 }
 
 export default function EventAttendeesPage() {
@@ -69,7 +69,7 @@ export default function EventAttendeesPage() {
       const {
         data: { user },
       } = await supabase.auth.getUser()
-      if (user && eventData.created_by === user.id) {
+      if (user && eventData.organizer_id === user.id) {
         setIsOwner(true)
       }
 

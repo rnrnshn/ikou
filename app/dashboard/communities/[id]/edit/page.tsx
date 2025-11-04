@@ -2,21 +2,23 @@
 
 import type React from "react"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect } from "react"
+import { useParams, useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase-client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Upload, X } from "lucide-react"
+import { Upload, X, ArrowLeft } from "lucide-react"
 import Image from "next/image"
 
-export default function NewCommunityPage() {
+export default function EditCommunityPage() {
+  const params = useParams()
   const router = useRouter()
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
+  const [initialLoading, setInitialLoading] = useState(true)
   const [error, setError] = useState("")
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
@@ -28,6 +30,49 @@ export default function NewCommunityPage() {
     city: "",
     image_url: "",
   })
+
+  useEffect(() => {
+    fetchCommunity()
+  }, [])
+
+  async function fetchCommunity() {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) {
+        router.push("/auth/login")
+        return
+      }
+
+      const { data, error } = await supabase.from("communities").select("*").eq("id", params.id).single()
+
+      if (error) throw error
+
+      // Check if user is the organizer
+      if (data.organizer_id !== user.id) {
+        setError("Você não tem permissão para editar esta comunidade")
+        return
+      }
+
+      setFormData({
+        name: data.name || "",
+        description: data.description || "",
+        category: data.category || "",
+        city: data.city || "",
+        image_url: data.image_url || "",
+      })
+
+      if (data.image_url) {
+        setImagePreview(data.image_url)
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao carregar comunidade")
+    } finally {
+      setInitialLoading(false)
+    }
+  }
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -44,6 +89,7 @@ export default function NewCommunityPage() {
   const removeImage = () => {
     setImageFile(null)
     setImagePreview(null)
+    setFormData({ ...formData, image_url: "" })
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -61,23 +107,9 @@ export default function NewCommunityPage() {
         return
       }
 
-      // Check if user already has a community
-      const { data: existingCommunities, error: checkError } = await supabase
-        .from("communities")
-        .select("id")
-        .eq("organizer_id", user.id)
+      let uploadedImageUrl = formData.image_url
 
-      if (checkError) throw checkError
-
-      if (existingCommunities && existingCommunities.length > 0) {
-        setError("Você já tem uma comunidade. Cada organizador pode criar apenas uma comunidade.")
-        setLoading(false)
-        return
-      }
-
-      let uploadedImageUrl = null
-
-      // Upload image if provided
+      // Upload new image if provided
       if (imageFile) {
         const fileExt = imageFile.name.split(".").pop()
         const fileName = `${user.id}-${Date.now()}.${fileExt}`
@@ -87,40 +119,68 @@ export default function NewCommunityPage() {
 
         if (uploadError) {
           console.error("Upload error:", uploadError)
-          // Continue without image if upload fails
-        } else {
-          const {
-            data: { publicUrl },
-          } = supabase.storage.from("images").getPublicUrl(filePath)
-          uploadedImageUrl = publicUrl
+          setError("Erro ao fazer upload da imagem")
+          setLoading(false)
+          return
         }
+
+        const {
+          data: { publicUrl },
+        } = supabase.storage.from("images").getPublicUrl(filePath)
+        uploadedImageUrl = publicUrl
       }
 
-      const { error: insertError } = await supabase.from("communities").insert({
-        name: formData.name,
-        description: formData.description,
-        category: formData.category,
-        city: formData.city,
-        image_url: uploadedImageUrl,
-        organizer_id: user.id,
-      })
+      const { error: updateError } = await supabase
+        .from("communities")
+        .update({
+          name: formData.name,
+          description: formData.description,
+          category: formData.category,
+          city: formData.city,
+          image_url: uploadedImageUrl,
+        })
+        .eq("id", params.id)
 
-      if (insertError) throw insertError
+      if (updateError) throw updateError
 
-      router.push("/dashboard/communities")
+      router.push(`/dashboard/communities/${params.id}`)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao criar comunidade")
+      setError(err instanceof Error ? err.message : "Erro ao atualizar comunidade")
     } finally {
       setLoading(false)
     }
   }
 
+  if (initialLoading) {
+    return <div className="text-center py-12">Carregando...</div>
+  }
+
+  if (error && !formData.name) {
+    return (
+      <div className="max-w-2xl">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-center text-destructive">{error}</div>
+            <Button onClick={() => router.back()} className="mt-4 w-full">
+              Voltar
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   return (
     <div className="max-w-2xl">
+      <Button variant="ghost" onClick={() => router.back()} className="mb-4">
+        <ArrowLeft className="mr-2 h-4 w-4" />
+        Voltar
+      </Button>
+
       <Card>
         <CardHeader>
-          <CardTitle>Criar Nova Comunidade</CardTitle>
-          <CardDescription>Crie uma nova comunidade para conectar pessoas com interesses em comum</CardDescription>
+          <CardTitle>Editar Comunidade</CardTitle>
+          <CardDescription>Atualize as informações da sua comunidade</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -147,10 +207,7 @@ export default function NewCommunityPage() {
 
             <div>
               <label className="block text-sm font-medium mb-2">Categoria</label>
-              <Select
-                value={formData.category}
-                onValueChange={(value) => setFormData({ ...formData, category: value })}
-              >
+              <Select value={formData.category} onValueChange={(value) => setFormData({ ...formData, category: value })}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione uma categoria" />
                 </SelectTrigger>
@@ -210,7 +267,7 @@ export default function NewCommunityPage() {
                 Cancelar
               </Button>
               <Button type="submit" disabled={loading}>
-                {loading ? "Criando..." : "Criar Comunidade"}
+                {loading ? "Salvando..." : "Salvar Alterações"}
               </Button>
             </div>
           </form>

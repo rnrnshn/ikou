@@ -4,8 +4,9 @@ import type { ReactNode } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Calendar, Users, Home, LogOut, Menu, X } from "lucide-react"
+import { Calendar, Users, Home, LogOut, Menu, X, Settings } from "lucide-react"
 import { useState } from "react"
+import { createClient } from "@/lib/supabase-client"
 
 interface DashboardLayoutProps {
   children: ReactNode
@@ -13,17 +14,19 @@ interface DashboardLayoutProps {
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const router = useRouter()
+  const supabase = createClient()
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const handleLogout = async () => {
-    // TODO: Implement logout
+    await supabase.auth.signOut()
     router.push("/")
   }
 
   const navItems = [
-    { name: "Home", href: "/dashboard", icon: Home },
-    { name: "Communities", href: "/dashboard/communities", icon: Users },
-    { name: "Events", href: "/dashboard/events", icon: Calendar },
+    { name: "Dashboard", href: "/dashboard", icon: Home },
+    { name: "Eventos", href: "/dashboard/events", icon: Calendar },
+    { name: "Membros", href: "/dashboard/members", icon: Users },
+    { name: "Definições", href: "/dashboard/settings", icon: Settings },
   ]
 
   return (
@@ -66,7 +69,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         <div className="absolute bottom-6 left-6 right-6">
           <Button onClick={handleLogout} variant="outline" className="w-full justify-start bg-transparent">
             <LogOut size={20} className="mr-2" />
-            Logout
+            Sair
           </Button>
         </div>
       </aside>

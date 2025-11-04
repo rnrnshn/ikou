@@ -8,10 +8,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import Link from "next/link"
+import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
-import { AlertCircle, CheckCircle } from "lucide-react"
+import { AlertCircle, CheckCircle, Users, Briefcase } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { cn } from "@/lib/utils"
+
+type UserRole = "member" | "organizer"
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -19,6 +23,7 @@ export default function RegisterPage() {
     email: "",
     password: "",
     confirmPassword: "",
+    role: "member" as UserRole,
   })
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
@@ -56,7 +61,8 @@ export default function RegisterPage() {
     setIsLoading(true)
 
     try {
-      const { error: signUpError } = await supabase.auth.signUp({
+      // Sign up with user metadata - the database trigger will create the profile
+      const { data, error: signUpError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
         options: {
@@ -64,34 +70,26 @@ export default function RegisterPage() {
             process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || `${window.location.origin}/auth/verify-email`,
           data: {
             name: formData.name,
+            role: formData.role,
           },
         },
       })
 
       if (signUpError) throw signUpError
 
-      const { data: authData } = await supabase.auth.getUser()
-      if (authData.user) {
-        const { error: profileError } = await supabase.from("profiles").insert([
-          {
-            id: authData.user.id,
-            name: formData.name,
-            email: formData.email,
-            role: "member",
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          },
-        ])
-
-        if (profileError) {
-          console.error("Profile creation error:", profileError)
-          // Don't throw - the trigger should handle this
-        }
+      // Check if email confirmation is required
+      if (data.user && !data.session) {
+        // Email confirmation is enabled - show message
+        setError("Por favor, verifique seu email para confirmar sua conta antes de fazer login.")
+        return
       }
 
+      // Success - user is logged in or email confirmation is disabled
       setSuccess(true)
       setTimeout(() => {
-        router.push("/auth/register-success")
+        // Redirect based on role
+        const redirectTo = formData.role === "organizer" ? "/dashboard" : "/"
+        router.push(redirectTo)
       }, 1500)
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "An error occurred"
@@ -123,7 +121,7 @@ export default function RegisterPage() {
         <Card>
           <CardHeader className="text-center">
             <Link href="/" className="inline-block mb-4">
-              <h1 className="text-3xl font-bold text-primary">Ikou</h1>
+              <Image src="/ikou.svg" alt="Ikou" width={150} height={54} className="mx-auto" priority />
             </Link>
             <CardTitle className="text-2xl">Criar Conta</CardTitle>
             <CardDescription>Junte-se à nossa comunidade de eventos</CardDescription>
@@ -156,6 +154,70 @@ export default function RegisterPage() {
                   onChange={handleChange}
                   disabled={isLoading}
                 />
+              </div>
+
+              <div className="space-y-3">
+                <Label>Tipo de Conta</Label>
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Member Card */}
+                  <button
+                    type="button"
+                    onClick={() => setFormData((prev) => ({ ...prev, role: "member" }))}
+                    disabled={isLoading}
+                    className={cn(
+                      "relative flex flex-col items-start gap-2 rounded-lg border-2 p-4 text-left transition-all hover:bg-accent",
+                      formData.role === "member"
+                        ? "border-primary bg-primary/5"
+                        : "border-muted hover:border-muted-foreground/20",
+                      isLoading && "opacity-50 cursor-not-allowed"
+                    )}
+                  >
+                    <div className="flex items-center gap-2 w-full">
+                      <Users className="h-5 w-5 shrink-0" />
+                      <span className="font-semibold">Membro</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Participe de eventos e siga comunidades
+                    </p>
+                    {formData.role === "member" && (
+                      <div className="absolute top-2 right-2">
+                        <div className="h-2 w-2 rounded-full bg-primary" />
+                      </div>
+                    )}
+                  </button>
+
+                  {/* Organizer Card */}
+                  <button
+                    type="button"
+                    onClick={() => setFormData((prev) => ({ ...prev, role: "organizer" }))}
+                    disabled={isLoading}
+                    className={cn(
+                      "relative flex flex-col items-start gap-2 rounded-lg border-2 p-4 text-left transition-all hover:bg-accent",
+                      formData.role === "organizer"
+                        ? "border-primary bg-primary/5"
+                        : "border-muted hover:border-muted-foreground/20",
+                      isLoading && "opacity-50 cursor-not-allowed"
+                    )}
+                  >
+                    <div className="flex items-center gap-2 w-full">
+                      <Briefcase className="h-5 w-5 shrink-0" />
+                      <span className="font-semibold">Organizador</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Crie e gerencie eventos e comunidades
+                    </p>
+                    {formData.role === "organizer" && (
+                      <div className="absolute top-2 right-2">
+                        <div className="h-2 w-2 rounded-full bg-primary" />
+                      </div>
+                    )}
+                  </button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {formData.role === "member"
+                    ? "Como membro, você pode descobrir eventos e participar de comunidades"
+                    : "Como organizador, você terá acesso ao painel de gerenciamento"}
+                </p>
               </div>
 
               <div className="space-y-2">

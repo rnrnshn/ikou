@@ -29,12 +29,48 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // Redirect to login if accessing protected routes without auth
-  if (request.nextUrl.pathname.startsWith("/dashboard") && !user) {
+  // Get user profile to check role
+  let userRole = null
+  if (user) {
+    const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single()
+    userRole = profile?.role
+  }
+
+  const isAuthPage = request.nextUrl.pathname.startsWith("/auth")
+  const isDashboard = request.nextUrl.pathname.startsWith("/dashboard")
+  const isHomePage = request.nextUrl.pathname === "/"
+
+  // If not logged in and trying to access dashboard, redirect to login
+  if (!user && isDashboard) {
     const url = request.nextUrl.clone()
     url.pathname = "/auth/login"
     url.searchParams.set("redirect", request.nextUrl.pathname)
     return NextResponse.redirect(url)
+  }
+
+  // If logged in as member trying to access dashboard, block access
+  if (user && userRole === "member" && isDashboard) {
+    return NextResponse.redirect(new URL("/", request.url))
+  }
+
+  // If logged in as organizer trying to access public event pages, block access
+  // Allow only: /, /auth/*, /dashboard/*
+  if (user && userRole === "organizer" && !isDashboard && !isAuthPage && !isHomePage) {
+    return NextResponse.redirect(new URL("/dashboard", request.url))
+  }
+
+  // If logged in and trying to access auth pages (except reset password), redirect based on role
+  if (
+    user &&
+    isAuthPage &&
+    !request.nextUrl.pathname.includes("/auth/reset-password") &&
+    !request.nextUrl.pathname.includes("/auth/forgot-password")
+  ) {
+    if (userRole === "organizer") {
+      return NextResponse.redirect(new URL("/dashboard", request.url))
+    } else {
+      return NextResponse.redirect(new URL("/", request.url))
+    }
   }
 
   return supabaseResponse

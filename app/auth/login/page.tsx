@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import Link from "next/link"
+import Image from "next/image"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useState } from "react"
 import { AlertCircle } from "lucide-react"
@@ -34,7 +35,22 @@ export default function LoginPage() {
         password,
       })
       if (error) throw error
-      router.push(redirect)
+
+      // Get user role to determine redirect
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (user) {
+        const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single()
+
+        // Redirect based on role
+        if (profile?.role === "organizer") {
+          router.push(redirect.startsWith("/dashboard") ? redirect : "/dashboard")
+        } else {
+          router.push(redirect === "/dashboard" ? "/" : redirect)
+        }
+      }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "An error occurred"
       setError(message)
@@ -49,7 +65,7 @@ export default function LoginPage() {
         <Card>
           <CardHeader className="text-center">
             <Link href="/" className="inline-block mb-4">
-              <h1 className="text-3xl font-bold text-primary">Ikou</h1>
+              <Image src="/ikou.svg" alt="Ikou" width={150} height={54} className="mx-auto" priority />
             </Link>
             <CardTitle className="text-2xl">Entrar</CardTitle>
             <CardDescription>Acesse sua conta para continuar</CardDescription>
@@ -70,7 +86,12 @@ export default function LoginPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password">Senha</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password">Senha</Label>
+                  <Link href="/auth/forgot-password" className="text-xs text-primary hover:underline">
+                    Esqueceu a senha?
+                  </Link>
+                </div>
                 <Input
                   id="password"
                   type="password"

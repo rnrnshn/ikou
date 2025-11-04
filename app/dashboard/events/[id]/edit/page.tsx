@@ -3,23 +3,25 @@
 import type React from "react"
 
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase-client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Upload, X } from "lucide-react"
+import { Upload, X, ArrowLeft } from "lucide-react"
 import Image from "next/image"
 
-export default function NewEventPage() {
+export default function EditEventPage() {
+  const params = useParams()
   const router = useRouter()
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
-  const [communityId, setCommunityId] = useState<string>("")
+  const [fetchingEvent, setFetchingEvent] = useState(true)
   const [error, setError] = useState("")
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null)
 
   const [formData, setFormData] = useState({
     title: "",
@@ -32,10 +34,10 @@ export default function NewEventPage() {
   })
 
   useEffect(() => {
-    fetchOrganizerCommunity()
+    fetchEvent()
   }, [])
 
-  async function fetchOrganizerCommunity() {
+  async function fetchEvent() {
     try {
       const {
         data: { user },
@@ -46,22 +48,41 @@ export default function NewEventPage() {
         return
       }
 
-      // Get the organizer's community
-      const { data: community, error } = await supabase
-        .from("communities")
-        .select("id")
-        .eq("organizer_id", user.id)
+      const { data: event, error } = await supabase
+        .from("events")
+        .select("*")
+        .eq("id", params.id)
         .single()
 
-      if (error || !community) {
-        setError("Você precisa criar uma comunidade primeiro")
+      if (error) throw error
+
+      // Check if user is the organizer
+      if (event.organizer_id !== user.id) {
+        setError("Você não tem permissão para editar este evento")
         return
       }
 
-      setCommunityId(community.id)
+      // Parse dates for form inputs
+      const startDate = new Date(event.start_date)
+      const endDate = new Date(event.end_date)
+
+      setFormData({
+        title: event.title,
+        description: event.description || "",
+        location: event.location || "",
+        start_date: startDate.toISOString().split("T")[0],
+        start_time: startDate.toTimeString().slice(0, 5),
+        end_date: endDate.toISOString().split("T")[0],
+        end_time: endDate.toTimeString().slice(0, 5),
+      })
+
+      setCurrentImageUrl(event.image_url)
+      setImagePreview(event.image_url)
     } catch (error) {
-      console.error("Error fetching community:", error)
-      setError("Erro ao carregar comunidade")
+      console.error("Error fetching event:", error)
+      setError("Erro ao carregar evento")
+    } finally {
+      setFetchingEvent(false)
     }
   }
 
@@ -80,6 +101,7 @@ export default function NewEventPage() {
   function removeImage() {
     setImageFile(null)
     setImagePreview(null)
+    setCurrentImageUrl(null)
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -88,12 +110,6 @@ export default function NewEventPage() {
     setError("")
 
     try {
-      if (!communityId) {
-        setError("Você precisa criar uma comunidade primeiro")
-        setLoading(false)
-        return
-      }
-
       const startDateTime = new Date(`${formData.start_date}T${formData.start_time}`).toISOString()
       const endDateTime = new Date(`${formData.end_date}T${formData.end_time}`).toISOString()
 
@@ -106,8 +122,8 @@ export default function NewEventPage() {
         return
       }
 
-      // Upload image if provided
-      let uploadedImageUrl = null
+      // Upload new image if provided
+      let uploadedImageUrl = currentImageUrl
       if (imageFile) {
         const fileExt = imageFile.name.split(".").pop()
         const fileName = `${user.id}-${Date.now()}.${fileExt}`
@@ -125,35 +141,64 @@ export default function NewEventPage() {
           data: { publicUrl },
         } = supabase.storage.from("images").getPublicUrl(filePath)
         uploadedImageUrl = publicUrl
+
+        // Delete old image if it exists
+        if (currentImageUrl) {
+          try {
+            const oldPath = currentImageUrl.split("/").slice(-2).join("/")
+            await supabase.storage.from("images").remove([oldPath])
+          } catch (err) {
+            console.error("Error deleting old image:", err)
+          }
+        }
       }
 
-      const { error: insertError } = await supabase.from("events").insert({
-        title: formData.title,
-        description: formData.description,
-        location: formData.location,
-        image_url: uploadedImageUrl,
-        start_date: startDateTime,
-        end_date: endDateTime,
-        community_id: communityId,
-        organizer_id: user.id,
-      })
+      const { error: updateError } = await supabase
+        .from("events")
+        .update({
+          title: formData.title,
+          description: formData.description,
+          location: formData.location,
+          image_url: uploadedImageUrl,
+          start_date: startDateTime,
+          end_date: endDateTime,
+        })
+        .eq("id", params.id)
 
-      if (insertError) throw insertError
+      if (updateError) throw updateError
 
-      router.push("/dashboard/events")
+      router.push(`/dashboard/events/${params.id}`)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao criar evento")
+      setError(err instanceof Error ? err.message : "Erro ao atualizar evento")
     } finally {
       setLoading(false)
     }
   }
 
+  if (fetchingEvent) {
+    return <div className="text-center py-12 text-muted-foreground">Carregando evento...</div>
+  }
+
+  if (error && !formData.title) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-destructive mb-4">{error}</p>
+        <Button onClick={() => router.back()}>Voltar</Button>
+      </div>
+    )
+  }
+
   return (
     <div className="max-w-2xl">
+      <Button variant="ghost" onClick={() => router.back()} className="mb-4">
+        <ArrowLeft className="mr-2 h-4 w-4" />
+        Voltar
+      </Button>
+
       <Card>
         <CardHeader>
-          <CardTitle>Criar Novo Evento</CardTitle>
-          <CardDescription>Crie um novo evento para sua comunidade</CardDescription>
+          <CardTitle>Editar Evento</CardTitle>
+          <CardDescription>Atualize as informações do seu evento</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -266,7 +311,7 @@ export default function NewEventPage() {
                 Cancelar
               </Button>
               <Button type="submit" disabled={loading}>
-                {loading ? "Criando..." : "Criar Evento"}
+                {loading ? "Salvando..." : "Salvar Alterações"}
               </Button>
             </div>
           </form>

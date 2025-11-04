@@ -1,21 +1,76 @@
+"use client"
+
 import Link from "next/link"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { createClient } from "@/lib/supabase/client"
+import { useRouter } from "next/navigation"
+import { useEffect, useState } from "react"
 
 export default function Home() {
+  const router = useRouter()
+  const supabase = createClient()
+  const [userRole, setUserRole] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    checkUser()
+  }, [])
+
+  async function checkUser() {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (user) {
+        const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single()
+        setUserRole(profile?.role || null)
+      }
+    } catch (error) {
+      console.error("Error checking user:", error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    setUserRole(null)
+    router.refresh()
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-secondary">
       {/* Navigation */}
       <nav className="border-b border-border bg-card">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-primary">Ikou</h1>
+          <Link href="/">
+            <Image src="/ikou.svg" alt="Ikou" width={120} height={43} className="h-8 w-auto" priority />
+          </Link>
           <div className="flex gap-4">
-            <Link href="/auth/login">
-              <Button variant="ghost">Login</Button>
-            </Link>
-            <Link href="/auth/register">
-              <Button>Sign Up</Button>
-            </Link>
+            {loading ? null : userRole ? (
+              <>
+                {userRole === "organizer" && (
+                  <Link href="/dashboard">
+                    <Button variant="ghost">Dashboard</Button>
+                  </Link>
+                )}
+                <Button variant="ghost" onClick={handleLogout}>
+                  Sair
+                </Button>
+              </>
+            ) : (
+              <>
+                <Link href="/auth/login">
+                  <Button variant="ghost">Login</Button>
+                </Link>
+                <Link href="/auth/register">
+                  <Button>Sign Up</Button>
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </nav>
