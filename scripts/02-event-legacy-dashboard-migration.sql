@@ -32,18 +32,17 @@ ALTER TABLE events
 ADD CONSTRAINT events_status_check
 CHECK (status IN ('draft', 'published', 'cancelled'));
 
--- Migrate existing events (set defaults based on is_online if it exists)
+-- Migrate existing events (set default values)
+-- Since we can't determine the original event type, we'll default to 'in_person'
+-- You can manually update specific events if needed after migration
 UPDATE events
 SET
-  event_type = CASE
-    WHEN is_online = true THEN 'virtual'
-    ELSE 'in_person'
-  END,
+  event_type = 'in_person',
   status = 'published',
   timezone = 'Africa/Maputo'
 WHERE event_type IS NULL;
 
--- Make event_type required after migration
+-- Make event_type required after setting defaults
 ALTER TABLE events
 ALTER COLUMN event_type SET NOT NULL;
 
