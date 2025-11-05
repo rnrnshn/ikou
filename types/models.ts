@@ -79,6 +79,8 @@ export interface Event {
   tickets?: Ticket[]
 }
 
+export type CheckInMethod = "qr_scan" | "manual" | "self_check_in"
+
 export interface RSVP {
   id: string
   event_id: string
@@ -87,8 +89,40 @@ export interface RSVP {
   user?: Profile
   ticket_id?: string
   ticket?: Ticket
-  check_in_time?: string
+  qr_code?: string
+  qr_token?: string
+  checked_in?: boolean
+  check_in_count?: number
+  check_in_time?: string // deprecated
   created_at: string
+}
+
+export interface CheckIn {
+  id: string
+  rsvp_id: string
+  rsvp?: RSVP
+  event_id: string
+  event?: Event
+  user_id: string
+  user?: Profile
+  checked_in_at: string
+  checked_in_by?: string
+  checked_in_by_profile?: Profile
+  check_in_method: CheckInMethod
+  notes?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface CheckInStats {
+  event_id: string
+  event_title: string
+  total_rsvps: number
+  checked_in_count: number
+  no_show_count: number
+  check_in_rate: number
+  first_check_in?: string
+  last_check_in?: string
 }
 
 export interface CommunityFollower {
