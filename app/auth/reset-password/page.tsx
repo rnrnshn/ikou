@@ -1,7 +1,5 @@
 "use client"
 
-import type React from "react"
-
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -13,15 +11,23 @@ import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
 import { AlertCircle, CheckCircle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { resetPasswordSchema, type ResetPasswordFormData } from "@/lib/validations"
 
 export default function ResetPasswordPage() {
-  const [password, setPassword] = useState("")
-  const [confirmPassword, setConfirmPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
   const [isValidSession, setIsValidSession] = useState(false)
   const router = useRouter()
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<ResetPasswordFormData>({
+    resolver: zodResolver(resetPasswordSchema),
+  })
 
   useEffect(() => {
     // Check if user came from password reset email
@@ -41,26 +47,13 @@ export default function ResetPasswordPage() {
     checkSession()
   }, [])
 
-  const handleResetPassword = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const onSubmit = async (data: ResetPasswordFormData) => {
     setError(null)
-
-    if (password !== confirmPassword) {
-      setError("As senhas não correspondem")
-      return
-    }
-
-    if (password.length < 6) {
-      setError("A senha deve ter pelo menos 6 caracteres")
-      return
-    }
-
     const supabase = createClient()
-    setIsLoading(true)
 
     try {
       const { error } = await supabase.auth.updateUser({
-        password: password,
+        password: data.password,
       })
 
       if (error) throw error
@@ -72,8 +65,6 @@ export default function ResetPasswordPage() {
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Ocorreu um erro"
       setError(message)
-    } finally {
-      setIsLoading(false)
     }
   }
 
@@ -126,19 +117,22 @@ export default function ResetPasswordPage() {
             <CardDescription>Digite sua nova senha</CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleResetPassword} className="space-y-6">
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
               <div className="space-y-2">
                 <Label htmlFor="password">Nova Senha</Label>
                 <Input
                   id="password"
                   type="password"
                   placeholder="••••••••"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  disabled={isLoading}
+                  {...register("password")}
+                  disabled={isSubmitting}
                 />
-                <p className="text-xs text-muted-foreground">Mínimo de 6 caracteres</p>
+                {errors.password && (
+                  <p className="text-xs text-destructive">{errors.password.message}</p>
+                )}
+                {!errors.password && (
+                  <p className="text-xs text-muted-foreground">Mínimo de 6 caracteres</p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -147,11 +141,12 @@ export default function ResetPasswordPage() {
                   id="confirmPassword"
                   type="password"
                   placeholder="••••••••"
-                  required
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  disabled={isLoading}
+                  {...register("confirmPassword")}
+                  disabled={isSubmitting}
                 />
+                {errors.confirmPassword && (
+                  <p className="text-xs text-destructive">{errors.confirmPassword.message}</p>
+                )}
               </div>
 
               {error && (
@@ -161,8 +156,8 @@ export default function ResetPasswordPage() {
                 </Alert>
               )}
 
-              <Button type="submit" className="w-full" disabled={isLoading || !isValidSession} size="lg">
-                {isLoading ? "Redefinindo..." : "Redefinir Senha"}
+              <Button type="submit" className="w-full" disabled={isSubmitting || !isValidSession} size="lg">
+                {isSubmitting ? "Redefinindo..." : "Redefinir Senha"}
               </Button>
             </form>
           </CardContent>

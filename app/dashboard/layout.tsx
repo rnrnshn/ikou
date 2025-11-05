@@ -4,7 +4,7 @@ import type { ReactNode } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Calendar, Users, Home, LogOut, Menu, X, Settings } from "lucide-react"
+import { Calendar, Users, Home, LogOut, Menu, X, Settings, Mail, Briefcase, BarChart3 } from "lucide-react"
 import { useState } from "react"
 import { createClient } from "@/lib/supabase-client"
 
@@ -24,8 +24,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
   const navItems = [
     { name: "Dashboard", href: "/dashboard", icon: Home },
+    { name: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
     { name: "Eventos", href: "/dashboard/events", icon: Calendar },
     { name: "Membros", href: "/dashboard/members", icon: Users },
+    { name: "Emails", href: "/dashboard/emails", icon: Mail },
+    { name: "Patrocinadores", href: "/dashboard/sponsors", icon: Briefcase },
     { name: "Definições", href: "/dashboard/settings", icon: Settings },
   ]
 
