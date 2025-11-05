@@ -1,6 +1,8 @@
 export type UserRole = "member" | "organizer" | "admin"
-export type EventStatus = "upcoming" | "past" | "cancelled"
+export type EventStatus = "draft" | "published" | "cancelled"
+export type EventType = "virtual" | "in_person" | "hybrid"
 export type EventCategory = "Tech" | "Business" | "Arts" | "Sports" | "Education" | "Social" | "Other"
+export type SponsorTier = "platinum" | "gold" | "silver" | "bronze" | "partner"
 
 export interface Profile {
   id: string
@@ -35,17 +37,46 @@ export interface Event {
   community?: Community
   organizer_id: string
   organizer?: Profile
-  event_date: string
-  duration_hours: number
-  venue_name: string
-  address: string
-  city: string
-  is_online: boolean
-  max_attendees?: number
-  image_url?: string
+
+  // Required fields
+  event_type: EventType
   status: EventStatus
+  timezone: string
+  start_date: string
+  end_date: string
+
+  // Optional core fields
+  image_url?: string
+  is_hidden?: boolean
+  facebook_pixel_id?: string
+  tags?: string[]
+
+  // Location fields (required for in_person & hybrid)
+  venue_name?: string
+  address?: string
+  city?: string
+  show_map?: boolean
+  location?: string // legacy field
+
+  // Virtual event fields (required for virtual & hybrid)
+  external_url?: string
+  virtual_instructions?: string
+
+  // Legacy fields (deprecated but kept for compatibility)
+  event_date?: string // deprecated, use start_date
+  duration_hours?: number // deprecated, calculate from start/end
+  is_online?: boolean // deprecated, use event_type
+  max_attendees?: number
+
+  // Timestamps
   created_at: string
   updated_at: string
+
+  // Relations
+  agenda_items?: AgendaItem[]
+  speakers?: Speaker[]
+  sponsors?: Sponsor[]
+  tickets?: Ticket[]
 }
 
 export interface RSVP {
@@ -54,6 +85,9 @@ export interface RSVP {
   event?: Event
   user_id: string
   user?: Profile
+  ticket_id?: string
+  ticket?: Ticket
+  check_in_time?: string
   created_at: string
 }
 
@@ -62,4 +96,95 @@ export interface CommunityFollower {
   community_id: string
   user_id: string
   created_at: string
+}
+
+// ==========================================
+// New event-related interfaces
+// ==========================================
+
+export interface AgendaItem {
+  id: string
+  event_id: string
+  title: string
+  description?: string
+  start_time: string // HH:MM format
+  end_time: string // HH:MM format
+  order_index: number
+  created_at: string
+  updated_at: string
+}
+
+export interface Speaker {
+  id: string
+  event_id: string
+  name: string
+  title?: string // Job title/role
+  bio?: string
+  image_url?: string
+  order_index: number
+  created_at: string
+  updated_at: string
+}
+
+export interface Sponsor {
+  id: string
+  event_id: string
+  name: string
+  logo_url?: string
+  tier?: SponsorTier
+  website_url?: string
+  order_index: number
+  created_at: string
+  updated_at: string
+}
+
+export interface Ticket {
+  id: string
+  event_id: string
+  name: string
+  description?: string
+  price: number
+  quantity?: number // null = unlimited
+  available_quantity?: number
+  order_index: number
+  created_at: string
+  updated_at: string
+}
+
+// ==========================================
+// Form input types (for creation/editing)
+// ==========================================
+
+export interface AgendaItemInput {
+  id?: string // Optional for new items
+  title: string
+  description?: string
+  start_time: string
+  end_time: string
+}
+
+export interface SpeakerInput {
+  id?: string
+  name: string
+  title?: string
+  bio?: string
+  image_url?: string
+  imageFile?: File // For file upload
+}
+
+export interface SponsorInput {
+  id?: string
+  name: string
+  logo_url?: string
+  logoFile?: File // For file upload
+  tier?: SponsorTier
+  website_url?: string
+}
+
+export interface TicketInput {
+  id?: string
+  name: string
+  description?: string
+  price: number
+  quantity?: number
 }
