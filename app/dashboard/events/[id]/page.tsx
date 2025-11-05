@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase-client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Calendar, MapPin, Users, Edit, Trash2, ArrowLeft, BarChart3 } from "lucide-react"
+import { Calendar, MapPin, Users, Edit, Trash2, ArrowLeft, BarChart3, QrCode, UserCheck } from "lucide-react"
 import Link from "next/link"
 
 interface Event {
@@ -32,6 +32,7 @@ export default function EventDetailPage() {
   const [loading, setLoading] = useState(true)
   const [currentUserId, setCurrentUserId] = useState("")
   const [isAttending, setIsAttending] = useState(false)
+  const [checkInStats, setCheckInStats] = useState({ totalRSVPs: 0, checkedIn: 0, rate: 0 })
 
   useEffect(() => {
     fetchEvent()
@@ -69,11 +70,36 @@ export default function EventDetailPage() {
           .single()
 
         setIsAttending(!!attendeeData)
+
+        // Fetch check-in stats if user is owner
+        if (user.id === data.organizer_id) {
+          await fetchCheckInStats()
+        }
       }
     } catch (error) {
       console.error("Error fetching event:", error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function fetchCheckInStats() {
+    try {
+      const { data: stats } = await supabase
+        .from("event_check_in_stats")
+        .select("*")
+        .eq("event_id", params.id)
+        .single()
+
+      if (stats) {
+        setCheckInStats({
+          totalRSVPs: stats.total_rsvps || 0,
+          checkedIn: stats.checked_in_count || 0,
+          rate: stats.check_in_rate || 0,
+        })
+      }
+    } catch (error) {
+      console.error("Error fetching check-in stats:", error)
     }
   }
 
@@ -190,14 +216,44 @@ export default function EventDetailPage() {
             {event.communities && <div className="text-primary font-medium">Comunidade: {event.communities.name}</div>}
           </div>
 
+          {/* Check-in Stats for Organizers */}
+          {isOwner && checkInStats.totalRSVPs > 0 && (
+            <div className="pt-4 border-t border-border">
+              <div className="grid grid-cols-3 gap-4 mb-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold">{checkInStats.totalRSVPs}</div>
+                  <div className="text-xs text-muted-foreground">Inscrições</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+                    {checkInStats.checkedIn}
+                  </div>
+                  <div className="text-xs text-muted-foreground">Check-ins</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold">{checkInStats.rate.toFixed(0)}%</div>
+                  <div className="text-xs text-muted-foreground">Taxa</div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="pt-4 border-t border-border space-y-3">
             {isOwner && (
-              <Link href={`/dashboard/events/${event.id}/attendees`}>
-                <Button className="w-full bg-transparent" variant="outline">
-                  <BarChart3 className="mr-2 h-4 w-4" />
-                  Ver e Gerenciar Participantes
-                </Button>
-              </Link>
+              <>
+                <Link href={`/dashboard/events/${event.id}/check-in`}>
+                  <Button className="w-full">
+                    <QrCode className="mr-2 h-4 w-4" />
+                    Realizar Check-in
+                  </Button>
+                </Link>
+                <Link href={`/dashboard/events/${event.id}/attendees`}>
+                  <Button className="w-full bg-transparent" variant="outline">
+                    <BarChart3 className="mr-2 h-4 w-4" />
+                    Ver e Gerenciar Participantes
+                  </Button>
+                </Link>
+              </>
             )}
 
             {!isOwner && (

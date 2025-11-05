@@ -5,6 +5,7 @@ import type { EventType } from "@/types/models"
 interface EventTypeSelectorProps {
   value: EventType | null
   onChange: (type: EventType) => void
+  disabled?: boolean // For edit mode - event type is immutable
 }
 
 const EVENT_TYPES = [
@@ -31,32 +32,42 @@ const EVENT_TYPES = [
   },
 ]
 
-export function EventTypeSelector({ value, onChange }: EventTypeSelectorProps) {
+export function EventTypeSelector({ value, onChange, disabled = false }: EventTypeSelectorProps) {
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold mb-2">Tipo de Evento</h2>
-        <p className="text-muted-foreground">
-          Selecione o tipo de evento. Esta escolha determinará quais seções você precisará preencher.
-        </p>
-        <div className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-900 rounded-lg">
-          <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200 flex items-start gap-2">
-            <span className="text-lg">⚠️</span>
-            <span>
-              <strong>Importante:</strong> O tipo de evento não pode ser alterado após a criação. Escolha com cuidado.
-            </span>
+        {disabled ? (
+          <p className="text-muted-foreground">
+            O tipo de evento não pode ser alterado após a criação.
           </p>
-        </div>
+        ) : (
+          <p className="text-muted-foreground">
+            Selecione o tipo de evento. Esta escolha determinará quais seções você precisará preencher.
+          </p>
+        )}
+        {!disabled && (
+          <div className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-900 rounded-lg">
+            <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200 flex items-start gap-2">
+              <span className="text-lg">⚠️</span>
+              <span>
+                <strong>Importante:</strong> O tipo de evento não pode ser alterado após a criação. Escolha com cuidado.
+              </span>
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {EVENT_TYPES.map(({ type, icon: Icon, title, description, features }) => (
           <Card
             key={type}
-            className={`cursor-pointer transition-all hover:shadow-lg ${
-              value === type ? "border-primary border-2 shadow-md" : "border-border hover:border-primary/50"
+            className={`transition-all ${
+              value === type ? "border-primary border-2 shadow-md" : "border-border"
+            } ${
+              disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:shadow-lg hover:border-primary/50"
             }`}
-            onClick={() => onChange(type)}
+            onClick={() => !disabled && onChange(type)}
           >
             <CardContent className="p-6">
               <div
@@ -82,9 +93,15 @@ export function EventTypeSelector({ value, onChange }: EventTypeSelectorProps) {
       </div>
 
       {value && (
-        <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-900 rounded-lg">
-          <p className="text-sm font-medium text-green-800 dark:text-green-200">
-            ✓ Tipo selecionado: <strong>{EVENT_TYPES.find((t) => t.type === value)?.title}</strong>
+        <div className={`p-4 border rounded-lg ${
+          disabled
+            ? "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-900"
+            : "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-900"
+        }`}>
+          <p className={`text-sm font-medium ${
+            disabled ? "text-blue-800 dark:text-blue-200" : "text-green-800 dark:text-green-200"
+          }`}>
+            {disabled ? "🔒" : "✓"} Tipo selecionado: <strong>{EVENT_TYPES.find((t) => t.type === value)?.title}</strong>
           </p>
         </div>
       )}

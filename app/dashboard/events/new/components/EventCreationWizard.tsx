@@ -1,6 +1,6 @@
 "use client"
 
-import { useReducer, useState, useCallback } from "react"
+import { useReducer, useState, useCallback, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { WizardProgress } from "./WizardProgress"
@@ -18,14 +18,24 @@ import { EventReview } from "./steps/EventReview"
 import { wizardReducer, initialState } from "../reducer"
 import { getVisibleSteps, getPrevStepNumber, getNextStepNumber } from "../types"
 import type { EventType, AgendaItemInput, SpeakerInput, SponsorInput, TicketInput } from "@/types/models"
-import { createEvent, saveDraft } from "../api"
+import type { EventFormData } from "../types"
+import { createEvent, updateEvent, saveDraft } from "../api"
 
 interface EventCreationWizardProps {
   communityId: string
   organizerId: string
+  eventId?: string // If provided, we're in edit mode
+  initialData?: EventFormData // Pre-populated data for editing
+  isEditMode?: boolean
 }
 
-export function EventCreationWizard({ communityId, organizerId }: EventCreationWizardProps) {
+export function EventCreationWizard({
+  communityId,
+  organizerId,
+  eventId,
+  initialData,
+  isEditMode = false,
+}: EventCreationWizardProps) {
   const router = useRouter()
   const [state, dispatch] = useReducer(wizardReducer, initialState)
 
@@ -37,6 +47,40 @@ export function EventCreationWizard({ communityId, organizerId }: EventCreationW
   const visibleSteps = getVisibleSteps(state.formData.event_type)
   const isFirstStep = state.currentStep === 1
   const isLastStep = state.currentStep === 10
+
+  // ==========================================
+  // Initialize with existing data (for edit mode)
+  // ==========================================
+
+  useEffect(() => {
+    if (initialData && isEditMode) {
+      // Set form data
+      dispatch({ type: "UPDATE_FORM", payload: initialData })
+
+      // Set image previews from existing URLs
+      if (initialData.image_url) {
+        setImagePreview(initialData.image_url)
+      }
+
+      // Set speaker image previews
+      const speakerPreviews: Record<number, string> = {}
+      initialData.speakers.forEach((speaker, index) => {
+        if (speaker.image_url) {
+          speakerPreviews[index] = speaker.image_url
+        }
+      })
+      setSpeakerImagePreviews(speakerPreviews)
+
+      // Set sponsor logo previews
+      const sponsorPreviews: Record<number, string> = {}
+      initialData.sponsors.forEach((sponsor, index) => {
+        if (sponsor.logo_url) {
+          sponsorPreviews[index] = sponsor.logo_url
+        }
+      })
+      setSponsorLogoPreviews(sponsorPreviews)
+    }
+  }, [initialData, isEditMode])
 
   // ==========================================
   // Helper Functions
@@ -82,12 +126,20 @@ export function EventCreationWizard({ communityId, organizerId }: EventCreationW
   const handlePublish = async () => {
     dispatch({ type: "SET_LOADING", payload: true })
     try {
-      const event = await createEvent(state.formData, communityId, organizerId)
-      // TODO: Show success message
+      let event
+      if (isEditMode && eventId) {
+        // Update existing event
+        event = await updateEvent(eventId, state.formData, communityId, organizerId)
+        alert("Evento atualizado com sucesso!")
+      } else {
+        // Create new event
+        event = await createEvent(state.formData, communityId, organizerId)
+        alert("Evento criado com sucesso!")
+      }
       router.push(`/dashboard/events/${event.id}`)
     } catch (error) {
-      console.error("Error publishing event:", error)
-      alert("Erro ao publicar evento")
+      console.error("Error saving event:", error)
+      alert(isEditMode ? "Erro ao atualizar evento" : "Erro ao criar evento")
     } finally {
       dispatch({ type: "SET_LOADING", payload: false })
     }
@@ -190,7 +242,7 @@ export function EventCreationWizard({ communityId, organizerId }: EventCreationW
   const renderStep = () => {
     switch (state.currentStep) {
       case 1:
-        return <EventTypeSelector value={state.formData.event_type} onChange={handleEventTypeChange} />
+        return <EventTypeSelector value={state.formData.event_type} onChange={handleEventTypeChange} disabled={isEditMode} />
 
       case 2:
         return (

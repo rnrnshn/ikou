@@ -1,43 +1,27 @@
 "use client"
 
-import type React from "react"
-
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase-client"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Upload, X, ArrowLeft } from "lucide-react"
-import Image from "next/image"
+import { EventCreationWizard } from "../../new/components/EventCreationWizard"
+import { loadEvent } from "../../new/api"
+import type { EventFormData } from "../../new/types"
 
 export default function EditEventPage() {
   const params = useParams()
   const router = useRouter()
   const supabase = createClient()
-  const [loading, setLoading] = useState(false)
-  const [fetchingEvent, setFetchingEvent] = useState(true)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
-  const [imageFile, setImageFile] = useState<File | null>(null)
-  const [imagePreview, setImagePreview] = useState<string | null>(null)
-  const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null)
-
-  const [formData, setFormData] = useState({
-    title: "",
-    description: "",
-    location: "",
-    start_date: "",
-    start_time: "",
-    end_date: "",
-    end_time: "",
-  })
+  const [eventData, setEventData] = useState<EventFormData | null>(null)
+  const [communityId, setCommunityId] = useState<string>("")
+  const [organizerId, setOrganizerId] = useState<string>("")
 
   useEffect(() => {
-    fetchEvent()
+    fetchEventData()
   }, [])
 
-  async function fetchEvent() {
+  async function fetchEventData() {
     try {
       const {
         data: { user },
@@ -48,275 +32,102 @@ export default function EditEventPage() {
         return
       }
 
-      const { data: event, error } = await supabase
+      setOrganizerId(user.id)
+
+      // Get the organizer's community
+      const { data: community, error: communityError } = await supabase
+        .from("communities")
+        .select("id")
+        .eq("organizer_id", user.id)
+        .single()
+
+      if (communityError || !community) {
+        setError("Você precisa ter uma comunidade para editar eventos.")
+        setLoading(false)
+        return
+      }
+
+      setCommunityId(community.id)
+
+      // Check if user is the organizer of this event
+      const { data: event, error: eventError } = await supabase
         .from("events")
-        .select("*")
+        .select("organizer_id")
         .eq("id", params.id)
         .single()
 
-      if (error) throw error
+      if (eventError) {
+        setError("Evento não encontrado")
+        setLoading(false)
+        return
+      }
 
-      // Check if user is the organizer
       if (event.organizer_id !== user.id) {
         setError("Você não tem permissão para editar este evento")
+        setLoading(false)
         return
       }
 
-      // Parse dates for form inputs
-      const startDate = new Date(event.start_date)
-      const endDate = new Date(event.end_date)
-
-      setFormData({
-        title: event.title,
-        description: event.description || "",
-        location: event.location || "",
-        start_date: startDate.toISOString().split("T")[0],
-        start_time: startDate.toTimeString().slice(0, 5),
-        end_date: endDate.toISOString().split("T")[0],
-        end_time: endDate.toTimeString().slice(0, 5),
-      })
-
-      setCurrentImageUrl(event.image_url)
-      setImagePreview(event.image_url)
-    } catch (error) {
-      console.error("Error fetching event:", error)
-      setError("Erro ao carregar evento")
-    } finally {
-      setFetchingEvent(false)
-    }
-  }
-
-  function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (file) {
-      setImageFile(file)
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string)
-      }
-      reader.readAsDataURL(file)
-    }
-  }
-
-  function removeImage() {
-    setImageFile(null)
-    setImagePreview(null)
-    setCurrentImageUrl(null)
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setLoading(true)
-    setError("")
-
-    try {
-      const startDateTime = new Date(`${formData.start_date}T${formData.start_time}`).toISOString()
-      const endDateTime = new Date(`${formData.end_date}T${formData.end_time}`).toISOString()
-
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-
-      if (!user) {
-        setError("Você deve estar autenticado")
+      // Load full event data
+      const data = await loadEvent(params.id as string)
+      if (!data) {
+        setError("Erro ao carregar evento")
+        setLoading(false)
         return
       }
 
-      // Upload new image if provided
-      let uploadedImageUrl = currentImageUrl
-      if (imageFile) {
-        const fileExt = imageFile.name.split(".").pop()
-        const fileName = `${user.id}-${Date.now()}.${fileExt}`
-        const filePath = `events/${fileName}`
-
-        const { error: uploadError } = await supabase.storage.from("images").upload(filePath, imageFile)
-
-        if (uploadError) {
-          console.error("Upload error:", uploadError)
-          setError("Erro ao fazer upload da imagem")
-          return
-        }
-
-        const {
-          data: { publicUrl },
-        } = supabase.storage.from("images").getPublicUrl(filePath)
-        uploadedImageUrl = publicUrl
-
-        // Delete old image if it exists
-        if (currentImageUrl) {
-          try {
-            const oldPath = currentImageUrl.split("/").slice(-2).join("/")
-            await supabase.storage.from("images").remove([oldPath])
-          } catch (err) {
-            console.error("Error deleting old image:", err)
-          }
-        }
-      }
-
-      const { error: updateError } = await supabase
-        .from("events")
-        .update({
-          title: formData.title,
-          description: formData.description,
-          location: formData.location,
-          image_url: uploadedImageUrl,
-          start_date: startDateTime,
-          end_date: endDateTime,
-        })
-        .eq("id", params.id)
-
-      if (updateError) throw updateError
-
-      router.push(`/dashboard/events/${params.id}`)
+      setEventData(data)
+      setLoading(false)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao atualizar evento")
-    } finally {
+      console.error("Error fetching event data:", err)
+      setError("Erro ao carregar evento")
       setLoading(false)
     }
   }
 
-  if (fetchingEvent) {
-    return <div className="text-center py-12 text-muted-foreground">Carregando evento...</div>
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Carregando evento...</p>
+        </div>
+      </div>
+    )
   }
 
-  if (error && !formData.title) {
+  if (error || !eventData) {
     return (
-      <div className="text-center py-12">
-        <p className="text-destructive mb-4">{error}</p>
-        <Button onClick={() => router.back()}>Voltar</Button>
+      <div className="max-w-2xl mx-auto mt-20">
+        <div className="bg-destructive/10 border border-destructive text-destructive rounded-lg p-6 text-center">
+          <p className="font-medium mb-4">{error || "Evento não encontrado"}</p>
+          <button
+            onClick={() => router.push("/dashboard/events")}
+            className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+          >
+            Voltar para Eventos
+          </button>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="max-w-2xl">
-      <Button variant="ghost" onClick={() => router.back()} className="mb-4">
-        <ArrowLeft className="mr-2 h-4 w-4" />
-        Voltar
-      </Button>
+    <div className="container py-8">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold mb-2">Editar Evento</h1>
+        <p className="text-muted-foreground">
+          Atualize as informações do evento em múltiplas etapas
+        </p>
+      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Editar Evento</CardTitle>
-          <CardDescription>Atualize as informações do seu evento</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium mb-2">Título do Evento</label>
-              <Input
-                required
-                placeholder="Ex: Meetup de Desenvolvedores"
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Descrição</label>
-              <Textarea
-                placeholder="Descreva seu evento..."
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                rows={4}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Localização</label>
-              <Input
-                placeholder="Ex: Centro de Inovação, Maputo"
-                value={formData.location}
-                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Imagem do Evento</label>
-              {!imagePreview ? (
-                <div className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary/50 transition-colors">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageChange}
-                    className="hidden"
-                    id="event-image-upload"
-                  />
-                  <label htmlFor="event-image-upload" className="cursor-pointer">
-                    <Upload className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <p className="text-sm text-muted-foreground mb-1">Clique para fazer upload da imagem</p>
-                    <p className="text-xs text-muted-foreground">PNG, JPG, GIF até 10MB</p>
-                  </label>
-                </div>
-              ) : (
-                <div className="relative w-full h-48 border rounded-lg overflow-hidden">
-                  <Image src={imagePreview} alt="Preview" fill className="object-cover" />
-                  <button
-                    type="button"
-                    onClick={removeImage}
-                    className="absolute top-2 right-2 bg-destructive text-destructive-foreground rounded-full p-2 hover:bg-destructive/90"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              )}
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">Data de Início</label>
-                <Input
-                  type="date"
-                  required
-                  value={formData.start_date}
-                  onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Hora de Início</label>
-                <Input
-                  type="time"
-                  required
-                  value={formData.start_time}
-                  onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">Data de Término</label>
-                <Input
-                  type="date"
-                  required
-                  value={formData.end_date}
-                  onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Hora de Término</label>
-                <Input
-                  type="time"
-                  required
-                  value={formData.end_time}
-                  onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
-                />
-              </div>
-            </div>
-
-            {error && <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-lg">{error}</div>}
-
-            <div className="flex gap-4">
-              <Button type="button" variant="outline" onClick={() => router.back()}>
-                Cancelar
-              </Button>
-              <Button type="submit" disabled={loading}>
-                {loading ? "Salvando..." : "Salvar Alterações"}
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+      <EventCreationWizard
+        communityId={communityId}
+        organizerId={organizerId}
+        eventId={params.id as string}
+        initialData={eventData}
+        isEditMode={true}
+      />
     </div>
   )
 }
